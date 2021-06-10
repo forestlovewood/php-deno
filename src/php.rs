@@ -1,42 +1,28 @@
-use crate::deno::{
-    Flavor,
-    Runner
-};
+use crate::deno::Flavor;
+use crate::deno::Runner;
 
 use std::time::Duration;
 
-use ext_php_rs::{
-    info_table_end,
-    info_table_row,
-    info_table_start,
-    parse_args,
-    php::{
-        args::Arg,
-        class::{
-            ClassBuilder,
-            ClassEntry
-        },
-        enums::DataType,
-        exceptions::throw,
-        execution_data::ExecutionData,
-        flags::MethodFlags,
-        function::FunctionBuilder,
-        module::{
-            ModuleBuilder,
-            ModuleEntry
-        },
-        types::{
-            long::ZendLong,
-            zval::Zval,
-            object::{
-                ZendObject,
-                ZendClassObject,
-                ZendObjectHandlers,
-                ZendObjectOverride
-            }
-        }
-    }
-};
+use ext_php_rs::info_table_end;
+use ext_php_rs::info_table_row;
+use ext_php_rs::info_table_start;
+use ext_php_rs::parse_args;
+use ext_php_rs::php::args::Arg;
+use ext_php_rs::php::class::ClassBuilder;
+use ext_php_rs::php::class::ClassEntry;
+use ext_php_rs::php::enums::DataType;
+use ext_php_rs::php::exceptions::throw;
+use ext_php_rs::php::execution_data::ExecutionData;
+use ext_php_rs::php::flags::MethodFlags;
+use ext_php_rs::php::function::FunctionBuilder;
+use ext_php_rs::php::module::ModuleBuilder;
+use ext_php_rs::php::module::ModuleEntry;
+use ext_php_rs::php::types::long::ZendLong;
+use ext_php_rs::php::types::zval::Zval;
+use ext_php_rs::php::types::object::ZendObject;
+use ext_php_rs::php::types::object::ZendClassObject;
+use ext_php_rs::php::types::object::ZendObjectHandlers;
+use ext_php_rs::php::types::object::ZendObjectOverride;
 
 struct Deno {
     runner: Runner

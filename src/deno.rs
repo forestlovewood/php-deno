@@ -1,17 +1,21 @@
-use deno_runtime::{permissions::Permissions, worker::MainWorker};
-use deno_core::{resolve_url_or_path, ModuleSpecifier};
+use std::time::Duration;
+use tokio::runtime::Builder;
+use tokio::runtime::Runtime;
+use anyhow::Result;
+use anyhow::Error;
+use futures::FutureExt;
+use std::sync::Arc;
+
+use deno_runtime::permissions::Permissions;
+use deno_runtime::worker::MainWorker;
+use deno_core::resolve_url_or_path;
+use deno_core::ModuleSpecifier;
+use deno_core::error::AnyError;
 
 use deno::program_state::ProgramState;
 use deno::create_main_worker;
 use deno::file_fetcher::File;
 use deno::media_type::MediaType;
-
-use std::time::Duration;
-use tokio::runtime::{Builder, Runtime};
-use anyhow::{Result, Error};
-use futures::FutureExt;
-use std::sync::Arc;
-use deno_core::error::AnyError;
 
 pub enum Flavor { JS, JSX, TS, TSX }
 
