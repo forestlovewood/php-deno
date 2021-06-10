@@ -1,0 +1,319 @@
+diff --git a/third_party/deno/cli/Cargo.toml b/third_party/deno/cli/Cargo.toml
+index 305b19c9..b1e1a957 100644
+--- a/third_party/deno/cli/Cargo.toml
++++ b/third_party/deno/cli/Cargo.toml
+@@ -14,6 +14,10 @@ default-run = "deno"
+ name = "deno"
+ path = "main.rs"
+ 
++[lib]
++name = "deno"
++path = "lib.rs"
++
+ [[bench]]
+ name = "deno_bench"
+ harness = false
+diff --git a/third_party/deno/cli/lib.rs b/third_party/deno/cli/lib.rs
+new file mode 100644
+index 00000000..5f5b7856
+--- /dev/null
++++ b/third_party/deno/cli/lib.rs
+@@ -0,0 +1,277 @@
++use log::info;
++use std::io::Write;
++use std::rc::Rc;
++use std::sync::Arc;
++
++use crate::program_state::ProgramState;
++use crate::module_loader::CliModuleLoader;
++use crate::fmt_errors::PrettyJsError;
++use crate::source_maps::apply_source_map;
++
++use deno_runtime::ops::worker_host::CreateWebWorkerCb;
++use deno_runtime::permissions::Permissions;
++use deno_runtime::web_worker::WebWorker;
++use deno_runtime::web_worker::WebWorkerOptions;
++use deno_runtime::worker::MainWorker;
++use deno_runtime::worker::WorkerOptions;
++
++use deno_core::error::AnyError;
++use deno_core::serde_json;
++use deno_core::ModuleSpecifier;
++
++#[allow(dead_code)]
++pub use deno_core;
++#[allow(dead_code)]
++pub use deno_runtime;
++
++#[allow(dead_code)]
++mod ops;
++#[allow(dead_code)]
++mod tools;
++#[allow(dead_code)]
++mod errors;
++
++pub mod ast;
++pub mod auth_tokens;
++pub mod checksum;
++pub mod colors;
++pub mod config_file;
++pub mod deno_dir;
++pub mod diagnostics;
++pub mod diff;
++pub mod disk_cache;
++pub mod file_fetcher;
++pub mod file_watcher;
++pub mod flags;
++pub mod flags_allow_net;
++pub mod fmt_errors;
++pub mod fs_util;
++pub mod http_cache;
++pub mod http_util;
++pub mod import_map;
++pub mod info;
++pub mod lockfile;
++pub mod media_type;
++pub mod module_graph;
++pub mod module_loader;
++pub mod program_state;
++pub mod source_maps;
++pub mod specifier_handler;
++pub mod standalone;
++pub mod text_encoding;
++pub mod tokio_util;
++pub mod tsc;
++pub mod unix_util;
++pub mod version;
++
++pub fn create_web_worker_callback(
++  program_state: Arc<ProgramState>,
++) -> Arc<CreateWebWorkerCb> {
++  Arc::new(move |args| {
++    let global_state_ = program_state.clone();
++    let js_error_create_fn = Rc::new(move |core_js_error| {
++      let source_mapped_error =
++        apply_source_map(&core_js_error, global_state_.clone());
++      PrettyJsError::create(source_mapped_error)
++    });
++
++    let attach_inspector = program_state.maybe_inspector_server.is_some()
++      || program_state.coverage_dir.is_some();
++    let maybe_inspector_server = program_state.maybe_inspector_server.clone();
++
++    let module_loader = CliModuleLoader::new_for_worker(
++      program_state.clone(),
++      args.parent_permissions.clone(),
++    );
++    let create_web_worker_cb =
++      create_web_worker_callback(program_state.clone());
++
++    let options = WebWorkerOptions {
++      args: program_state.flags.argv.clone(),
++      apply_source_maps: true,
++      debug_flag: program_state
++        .flags
++        .log_level
++        .map_or(false, |l| l == log::Level::Debug),
++      unstable: program_state.flags.unstable,
++      ca_data: program_state.ca_data.clone(),
++      user_agent: version::get_user_agent(),
++      seed: program_state.flags.seed,
++      module_loader,
++      create_web_worker_cb,
++      js_error_create_fn: Some(js_error_create_fn),
++      use_deno_namespace: args.use_deno_namespace,
++      attach_inspector,
++      maybe_inspector_server,
++      runtime_version: version::deno(),
++      ts_version: version::TYPESCRIPT.to_string(),
++      no_color: !colors::use_color(),
++      get_error_class_fn: Some(&crate::errors::get_error_class_name),
++      blob_url_store: program_state.blob_url_store.clone(),
++      broadcast_channel: program_state.broadcast_channel.clone(),
++    };
++
++    let mut worker = WebWorker::from_options(
++      args.name,
++      args.permissions,
++      args.main_module,
++      args.worker_id,
++      &options,
++    );
++
++    // This block registers additional ops and state that
++    // are only available in the CLI
++    {
++      let js_runtime = &mut worker.js_runtime;
++      js_runtime
++        .op_state()
++        .borrow_mut()
++        .put::<Arc<ProgramState>>(program_state.clone());
++      // Applies source maps - works in conjuction with `js_error_create_fn`
++      // above
++      ops::errors::init(js_runtime);
++      if args.use_deno_namespace {
++        ops::runtime_compiler::init(js_runtime);
++      }
++      js_runtime.sync_ops_cache();
++    }
++    worker.bootstrap(&options);
++
++    worker
++  })
++}
++
++pub fn create_main_worker(
++  program_state: &Arc<ProgramState>,
++  main_module: ModuleSpecifier,
++  permissions: Permissions,
++  enable_testing: bool,
++) -> MainWorker {
++  let module_loader = CliModuleLoader::new(program_state.clone());
++
++  let global_state_ = program_state.clone();
++
++  let js_error_create_fn = Rc::new(move |core_js_error| {
++    let source_mapped_error =
++      apply_source_map(&core_js_error, global_state_.clone());
++    PrettyJsError::create(source_mapped_error)
++  });
++
++  let attach_inspector = program_state.maybe_inspector_server.is_some()
++    || program_state.flags.repl
++    || program_state.coverage_dir.is_some();
++  let maybe_inspector_server = program_state.maybe_inspector_server.clone();
++  let should_break_on_first_statement =
++    program_state.flags.inspect_brk.is_some();
++
++  let create_web_worker_cb = create_web_worker_callback(program_state.clone());
++
++  let options = WorkerOptions {
++    apply_source_maps: true,
++    args: program_state.flags.argv.clone(),
++    debug_flag: program_state
++      .flags
++      .log_level
++      .map_or(false, |l| l == log::Level::Debug),
++    unstable: program_state.flags.unstable,
++    ca_data: program_state.ca_data.clone(),
++    user_agent: version::get_user_agent(),
++    seed: program_state.flags.seed,
++    js_error_create_fn: Some(js_error_create_fn),
++    create_web_worker_cb,
++    attach_inspector,
++    maybe_inspector_server,
++    should_break_on_first_statement,
++    module_loader,
++    runtime_version: version::deno(),
++    ts_version: version::TYPESCRIPT.to_string(),
++    no_color: !colors::use_color(),
++    get_error_class_fn: Some(&crate::errors::get_error_class_name),
++    location: program_state.flags.location.clone(),
++    origin_storage_dir: program_state.flags.location.clone().map(|loc| {
++      program_state
++        .dir
++        .root
++        .clone()
++        // TODO(@crowlKats): change to origin_data for 2.0
++        .join("location_data")
++        .join(checksum::gen(&[loc.to_string().as_bytes()]))
++    }),
++    blob_url_store: program_state.blob_url_store.clone(),
++    broadcast_channel: program_state.broadcast_channel.clone(),
++  };
++
++  let mut worker = MainWorker::from_options(main_module, permissions, &options);
++
++  // This block registers additional ops and state that
++  // are only available in the CLI
++  {
++    let js_runtime = &mut worker.js_runtime;
++    js_runtime
++      .op_state()
++      .borrow_mut()
++      .put::<Arc<ProgramState>>(program_state.clone());
++    // Applies source maps - works in conjuction with `js_error_create_fn`
++    // above
++    ops::errors::init(js_runtime);
++    ops::runtime_compiler::init(js_runtime);
++
++    if enable_testing {
++      ops::testing::init(js_runtime);
++    }
++
++    js_runtime.sync_ops_cache();
++  }
++  worker.bootstrap(&options);
++
++  worker
++}
++
++pub fn write_to_stdout_ignore_sigpipe(
++  bytes: &[u8],
++) -> Result<(), std::io::Error> {
++  use std::io::ErrorKind;
++
++  match std::io::stdout().write_all(bytes) {
++    Ok(()) => Ok(()),
++    Err(e) => match e.kind() {
++      ErrorKind::BrokenPipe => Ok(()),
++      _ => Err(e),
++    },
++  }
++}
++
++pub fn write_json_to_stdout<T>(value: &T) -> Result<(), AnyError>
++  where
++    T: ?Sized + serde::ser::Serialize,
++{
++  let mut writer = std::io::BufWriter::new(std::io::stdout());
++  serde_json::to_writer_pretty(&mut writer, value)?;
++  writeln!(&mut writer)?;
++  Ok(())
++}
++
++pub fn get_types(unstable: bool) -> String {
++  let mut types = format!(
++    "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
++    crate::tsc::DENO_NS_LIB,
++    crate::tsc::DENO_CONSOLE_LIB,
++    crate::tsc::DENO_URL_LIB,
++    crate::tsc::DENO_WEB_LIB,
++    crate::tsc::DENO_FILE_LIB,
++    crate::tsc::DENO_FETCH_LIB,
++    crate::tsc::DENO_WEBGPU_LIB,
++    crate::tsc::DENO_WEBSOCKET_LIB,
++    crate::tsc::DENO_WEBSTORAGE_LIB,
++    crate::tsc::DENO_CRYPTO_LIB,
++    crate::tsc::DENO_BROADCAST_CHANNEL_LIB,
++    crate::tsc::SHARED_GLOBALS_LIB,
++    crate::tsc::WINDOW_LIB,
++  );
++
++  if unstable {
++    types.push_str(&format!("\n{}", crate::tsc::UNSTABLE_NS_LIB,));
++  }
++
++  types
++}
+diff --git a/third_party/deno/cli/main.rs b/third_party/deno/cli/main.rs
+index 23b51219..fade16cf 100644
+--- a/third_party/deno/cli/main.rs
++++ b/third_party/deno/cli/main.rs
+@@ -37,6 +37,7 @@ mod tools;
+ mod tsc;
+ mod unix_util;
+ mod version;
++mod lib;
+ 
+ use crate::file_fetcher::File;
+ use crate::file_watcher::ResolutionResult;
+@@ -80,7 +81,7 @@ use std::sync::Arc;
+ use std::sync::Mutex;
+ use tools::test_runner;
+ 
+-fn create_web_worker_callback(
++pub fn create_web_worker_callback(
+   program_state: Arc<ProgramState>,
+ ) -> Arc<CreateWebWorkerCb> {
+   Arc::new(move |args| {
