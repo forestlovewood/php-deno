@@ -1,0 +1,18 @@
+[package]
+name = "php-deno"
+version = "1.11.0"
+authors = ["Forest Lovewood <forest.lovewood@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+deno = { path = "third_party/deno/cli" }
+deno_core = { path = "third_party/deno/core" }
+deno_runtime = { path = "third_party/deno/runtime" }
+ext-php-rs = "0.0.7"
+tokio = "1.6.1"
+anyhow = "1.0.40"
+futures = "0.3.15"
+
+[lib]
+name = "deno"
+crate-type = ["dylib"]
