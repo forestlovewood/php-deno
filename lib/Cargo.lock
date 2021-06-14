@@ -1822,6 +1822,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12b8adadd720df158f4d70dfe7ccc6adb0472d7c55ca83445f6a5ab3e36f8fb6"
 
 [[package]]
+name = "libdeno"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "cbindgen",
+ "const_format",
+ "deno",
+ "deno_core",
+ "deno_runtime",
+ "futures",
+ "tokio",
+]
+
+[[package]]
 name = "libloading"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2248,20 +2262,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c00cf8b9eafe68dde5e9eaa2cef8ee84a9336a47d566ec55ca16589633b65af7"
 dependencies = [
  "siphasher",
-]
-
-[[package]]
-name = "php-ffi-deno"
-version = "1.11.0"
-dependencies = [
- "anyhow",
- "cbindgen",
- "const_format",
- "deno",
- "deno_core",
- "deno_runtime",
- "futures",
- "tokio",
 ]
 
 [[package]]
