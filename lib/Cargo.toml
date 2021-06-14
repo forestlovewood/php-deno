@@ -1,0 +1,27 @@
+[package]
+name = "php-ffi-deno"
+version = "1.11.0"
+authors = ["Forest Lovewood <forest.lovewood@gmail.com>"]
+edition = "2018"
+build = "build.rs"
+
+[lib]
+name = "deno"
+crate-type = ["cdylib"]
+
+[build-dependencies]
+cbindgen = "0.19.0"
+const_format = "0.2.14"
+
+[dependencies]
+deno = "1.11.0"
+deno_core = "0.89.0"
+deno_runtime = "0.16.0"
+tokio = "1.6.1"
+anyhow = "1.0.40"
+futures = "0.3.15"
+
+[patch.crates-io]
+deno = { git = "https://github.com/forestlovewood/deno", package = "deno", branch = "php-deno@v1.11.0" }
+deno_core = { git = "https://github.com/forestlovewood/deno", package = "deno_core", branch = "php-deno@v1.11.0" }
+deno_runtime = { git = "https://github.com/forestlovewood/deno", package = "deno_runtime", branch = "php-deno@v1.11.0" }

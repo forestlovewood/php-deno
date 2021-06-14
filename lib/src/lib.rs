@@ -1,32 +1,26 @@
+use tokio::runtime::{Builder, Runtime};
+use anyhow::{Result, Error};
 use std::time::Duration;
-use tokio::runtime::Builder;
-use tokio::runtime::Runtime;
-use anyhow::Result;
-use anyhow::Error;
 use futures::FutureExt;
 use std::sync::Arc;
 
-use deno_runtime::permissions::Permissions;
-use deno_runtime::worker::MainWorker;
-use deno_core::resolve_url_or_path;
-use deno_core::ModuleSpecifier;
-use deno_core::error::AnyError;
+use deno::{program_state::ProgramState, create_main_worker, file_fetcher::File, media_type::MediaType};
+use deno_core::{resolve_url_or_path, ModuleSpecifier, error::AnyError};
+use deno_runtime::{permissions::Permissions, worker::MainWorker};
+use std::os::raw::{c_char, c_int, c_double, c_long};
+use std::ffi::CString;
 
-use deno::program_state::ProgramState;
-use deno::create_main_worker;
-use deno::file_fetcher::File;
-use deno::media_type::MediaType;
+#[repr(C)]
+pub enum Type { JS, JSX, TS, TSX }
 
-pub enum Flavor { JS, JSX, TS, TSX }
-
-pub struct Runner {
+pub struct Deno {
     runtime: Runtime,
     state: Arc<ProgramState>,
     permissions: Permissions,
     specifier: ModuleSpecifier,
 }
 
-impl Runner {
+impl Deno {
     async fn eval(&self, worker: &mut MainWorker, specifier: ModuleSpecifier) -> Result<(), AnyError> {
         worker.execute_module(&specifier).await?;
         worker.execute("window.dispatchEvent(new Event('load'))")?;
@@ -36,7 +30,7 @@ impl Runner {
         Ok(())
     }
 
-    pub fn run(&self, source: String, flavor: Flavor, _timeout: Duration) -> Result<String, Error> {
+    pub fn run(&self, source: String, media_type: Type, _timeout: Duration) -> Result<String, Error> {
         let mut worker: MainWorker = create_main_worker(
             &self.state,
             self.specifier.clone(),
@@ -47,11 +41,11 @@ impl Runner {
         self.state.file_fetcher.insert_cached(File {
             local: self.specifier.clone().to_file_path().unwrap(),
             maybe_types: None,
-            media_type: match flavor {
-                Flavor::JS => MediaType::JavaScript,
-                Flavor::JSX => MediaType::Jsx,
-                Flavor::TS => MediaType::TypeScript,
-                Flavor::TSX => MediaType::Tsx
+            media_type: match media_type {
+                Type::JS => MediaType::JavaScript,
+                Type::JSX => MediaType::Jsx,
+                Type::TS => MediaType::TypeScript,
+                Type::TSX => MediaType::Tsx
             },
             source,
             specifier: self.specifier.clone()
@@ -64,7 +58,7 @@ impl Runner {
         Result::Ok("".to_string())
     }
 
-    pub fn new() -> Runner {
+    pub fn new() -> Deno {
         let runtime = Builder::new_current_thread()
             .enable_io()
             .enable_time()
@@ -79,6 +73,18 @@ impl Runner {
         let permissions = Permissions::allow_all();
         let specifier = resolve_url_or_path("./$deno$stdin.ts").unwrap();
 
-        Runner { runtime, state, permissions, specifier }
+        Deno { runtime, state, permissions, specifier }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn execute(source: *const c_char, media_type: *const Type, timeout: *const c_long) -> *const c_char {
+    let result = CString::new("execute").expect("CString::new failed");
+    result.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn execute_file(path: *const c_char, media_type: *const Type, timeout: *const c_long) -> *const c_char {
+    let result = CString::new("execute_file").expect("CString::new failed");
+    result.as_ptr()
 }

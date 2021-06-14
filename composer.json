@@ -1,0 +1,28 @@
+{
+    "name": "forestlovewood/php-deno",
+    "description": "PHP Deno is a Rust-based PHP extension that embeds the Deno JavaScript engine.",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Forest Lovewood",
+            "email": "forest.lovewood@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Deno\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.0",
+        "ext-ffi": "*"
+    },
+    "scripts": {
+        "post-install-cmd": "@build-library",
+        "post-update-cmd": "@build-library",
+        "build-library": "./build.sh"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
