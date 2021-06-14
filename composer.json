@@ -1,6 +1,6 @@
 {
     "name": "forestlovewood/php-deno",
-    "description": "PHP Deno is a Rust-based PHP extension that embeds the Deno JavaScript engine.",
+    "description": "PHP Deno is a Composer package that uses FFI to provide access to the Deno JavaScript and TypeScript engine.",
     "license": "MIT",
     "type": "library",
     "authors": [
