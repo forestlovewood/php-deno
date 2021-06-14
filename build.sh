@@ -37,10 +37,8 @@ function check_compatibility {
 
   RUST_FAMILY=""
   RUST_OS=""
-  RUST_TYPE=""
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     RUST_FAMILY="unknown"
-    RUST_TYPE="tar.gz"
     if [[ -z $(ldd /bin/ls | grep 'musl' | head -1 | cut -d ' ' -f1) ]]; then
       RUST_OS="linux-gnu"
     else
@@ -49,7 +47,6 @@ function check_compatibility {
   elif [[ "$OSTYPE" == "darwin"* ]]; then
     RUST_FAMILY="apple"
     RUST_OS="darwin"
-    RUST_TYPE="tar.gz"
   else
     log error "Incompatible operating system. Build environment only supports Linux and macOS."
     exit 1
@@ -62,7 +59,7 @@ function create_environment {
   RUST_STDLIB="${RUST_ARCH}-${RUST_FAMILY}-${RUST_OS}"
   RUST_DIR="rust-${RUST_VERSION}-${RUST_STDLIB}"
 
-  RUST_URI="https://static.rust-lang.org/dist/${RUST_DIR}.${RUST_TYPE}"
+  RUST_URI="https://static.rust-lang.org/dist/${RUST_DIR}.tar.gz"
   RUST_URI_ASC="${RUST_URI}.asc"
 
   RUST_TMP=$(mktemp)
