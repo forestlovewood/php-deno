@@ -1,7 +1,7 @@
 [package]
 name = "libdeno"
 version = "1.11.0"
-authors = ["Forest Lovewood <forest.lovewood@gmail.com>"]
+authors = ["the PHP Deno authors", "the Deno authors"]
 edition = "2018"
 build = "build.rs"
 
